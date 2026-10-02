@@ -1082,9 +1082,9 @@ body.pwa .pwafull .pcard *{overflow-wrap:anywhere}
   <h3>Cambiar contraseña</h3>
   <label id="lPassA">Contraseña actual<input type="password" name="a" required autocomplete="current-password" style="text-transform:uppercase"></label>
   <p class="hint" id="dPassForz" hidden><b>Debes cambiar tu contraseña inicial para continuar.</b></p>
-  <label>Nueva contraseña<input type="password" name="n" required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" autocomplete="new-password" style="text-transform:uppercase" placeholder="8 caracteres"></label>
-  <label>Repite la nueva contraseña<input type="password" name="c" required minlength="8" maxlength="8" pattern="[A-Za-z0-9]{8}" autocomplete="new-password" style="text-transform:uppercase"></label>
-  <p class="hint">Exactamente 8 caracteres, en MAYÚSCULA, combinando letras y números (sin espacios ni símbolos). No puede ser 123456789.</p>
+  <label>Nueva contraseña<input type="password" name="n" required minlength="8" maxlength="72" pattern="[A-Za-z0-9]{8,72}" autocomplete="new-password" style="text-transform:uppercase" placeholder="Mínimo 8 caracteres"></label>
+  <label>Repite la nueva contraseña<input type="password" name="c" required minlength="8" maxlength="72" pattern="[A-Za-z0-9]{8,72}" autocomplete="new-password" style="text-transform:uppercase"></label>
+  <p class="hint">Mínimo 8 caracteres (máximo 72), en MAYÚSCULA, combinando letras y números (sin espacios ni símbolos). No puede ser 123456789.</p>
   <p class="err" id="dPassErr"></p>
   <div class="acts"><button type="button" class="ghost" id="bPassCancel" data-close>Cancelar</button><button type="button" class="ghost" id="bPassSalir" hidden>Salir</button><button class="primary">Cambiar contraseña</button></div>
 </form></dialog>
@@ -4987,9 +4987,11 @@ async function roleAction(e){
 }
 
 
-/* ---------- contraseña propia: 8 caracteres, MAYÚSCULA, letras y números; el usuario nuevo está obligado a cambiarla ---------- */
+/* ---------- contraseña propia: mínimo 8 caracteres, MAYÚSCULA, letras y números; el usuario nuevo está obligado a cambiarla ---------- */
 function validarClave(n){
-  if(!/^[A-Z0-9]{8}$/.test(n))return 'La contraseña debe tener exactamente 8 caracteres, en MAYÚSCULA, solo letras y números.';
+  if(n.length<8)return 'La contraseña debe tener al menos 8 caracteres.';
+  if(n.length>72)return 'La contraseña no puede pasar de 72 caracteres.';
+  if(!/^[A-Z0-9]+$/.test(n))return 'La contraseña solo puede tener letras y números, sin espacios ni símbolos.';
   if(!/[A-Z]/.test(n)||!/[0-9]/.test(n))return 'La contraseña debe combinar letras y números.';
   if(n===DEFAULT_PASS)return 'Elige una contraseña distinta a la de por defecto.';
   return '';
