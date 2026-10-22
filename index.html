@@ -2042,7 +2042,7 @@ const CICLO=['ingreso_puerta','ingate','alistamiento','entrega_operador','outgat
 /* ---------- PESAJE (vehículos NO nacionalizados que se radican antes de pasar por puerta) ----------
    v.pesaje: 'pesando' (en báscula, bandera en Ingreso al sistema) -> 'en_puerta' (Registro avisó: Seguridad lo ve) -> 'ingresado' (Seguridad le dio ingreso).
    Mientras esté pesando o en puerta NO cuenta permanencia ni aforo ni se puede recibir en Alistamiento. */
-function pesPend(v){return (v.pesaje==='pesando'||v.pesaje==='en_puerta')&&v.etapaActual==='ingate'}   // solo registros antiguos: ahora el pesaje vive dentro de la fila de Enturnamiento
+function pesPend(v){return (v.pesaje==='pesando'||v.pesaje==='en_puerta')&&v.etapaActual==='ingate'&&!(v.etapas&&v.etapas.ingreso_puerta&&v.etapas.ingreso_puerta.inicio)}   // si ya tiene Ingreso puerta registrado, ya entró (flujo nuevo: la marca queda en en_puerta pero no está pendiente)   // solo registros antiguos: ahora el pesaje vive dentro de la fila de Enturnamiento
 function pesEnFila(v){return v.pesaje==='pesando'&&v.etapaActual==='enturnamiento'}          // en báscula: ocupa su puesto en la fila pero NO se le llama
 function pesEnPuertaFila(v){return v.pesaje==='en_puerta'&&v.etapaActual==='enturnamiento'}   // ya llegó a puerta: sigue el llamado normal
 function pesStrip(v){return v.pesaje==='en_puerta'?'<span class="strip fuera" title="Llegó a puerta: Seguridad ya lo ve en su lista de ingreso">⚖ EN PUERTA · espera ingreso de Seguridad</span>':'<span class="strip early" title="Está en la báscula: aún no pasa por puerta. No cuenta permanencia ni aforo">⚖ PESANDO</span>'}
@@ -2883,7 +2883,7 @@ function renderPwaList(){
   // cada puerta ve solo sus vehículos, y solo los que Registro LLAMÓ y siguen vigentes.
   // Al vencer el llamado (LLAMADO_MIN) la placa desaparece de Seguridad y queda libre para que Registro la llame de nuevo.
   let ing=ent.filter(v=>enVer(v.puertaAsignada||'1')&&llamadoActivo(v)).sort((a,b)=>ordenKey(a)-ordenKey(b));
-  const ingP=all.filter(v=>v.etapaActual==='ingate'&&v.pesaje==='en_puerta'&&enVer(v.puertaAsignada||'1'));
+  const ingP=all.filter(v=>v.etapaActual==='ingate'&&v.pesaje==='en_puerta'&&!(v.etapas&&v.etapas.ingreso_puerta&&v.etapas.ingreso_puerta.inicio)&&enVer(v.puertaAsignada||'1'));
   const enSal=all.filter(v=>v.etapaActual==='salida_puerta'&&enVer((v.etapas.salida_puerta||{}).puerta||v.puertaAsignada||'1'));   // cada puerta ve sus salidas
   // vehículos dentro que NO han terminado su ciclo: solo se les puede dar SALIDA FORZADA (con alerta a Registro)
   const dentro=all.filter(v=>DENTRO.includes(v.etapaActual)&&!pesPend(v)&&enVer(puertaActual(v))).sort(   // cada puerta ve solo los suyos
@@ -2894,7 +2894,7 @@ function renderPwaList(){
   // bandera en cada puerta: vehículos listos para ingresar y en puerta de salida (se ve desde cualquier puerta)
   {const pend={1:{i:0,s:0},2:{i:0,s:0},3:{i:0,s:0}};
    all.forEach(v=>{if(v.etapaActual==='enturnamiento'&&!esperaVentana(v)&&llamadoActivo(v)){const p=String(v.puertaAsignada||'1');if(pend[p])pend[p].i++}
-     if(v.etapaActual==='ingate'&&v.pesaje==='en_puerta'){const p=String(v.puertaAsignada||'1');if(pend[p])pend[p].i++}
+     if(v.etapaActual==='ingate'&&v.pesaje==='en_puerta'&&!(v.etapas&&v.etapas.ingreso_puerta&&v.etapas.ingreso_puerta.inicio)){const p=String(v.puertaAsignada||'1');if(pend[p])pend[p].i++}
      if(v.etapaActual==='salida_puerta'){const p=String((v.etapas.salida_puerta||{}).puerta||v.puertaAsignada||'1');if(pend[p])pend[p].s++}});
    document.querySelectorAll('.pgate [data-gate]').forEach(b=>{const g=b.dataset.gate;const n=pend[g];b.setAttribute('aria-checked',g===pwaPuerta);
      const tot=n.i+n.s;
