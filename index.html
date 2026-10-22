@@ -1502,10 +1502,10 @@ async function sbPut(col,id,d){
       }
       else if((d.pesaje||null)!==(prev.pesaje||null)){   // PESAJE: pesando -> en_puerta -> ingresado (o cancelar)
         const pn=d.pesaje||null;
-        if(pn==='pesando')sbErr(await SB.rpc('pesaje_iniciar',{p_visita:u}));
-        else if(pn==='en_puerta')sbErr(await SB.rpc('pesaje_llegada',{p_visita:u,p_puerta:String(d.puertaAsignada||'1')}));
+        if(pn==='pesando')sbErr(await SB.rpc(prev.etapaActual==='enturnamiento'?'pesaje_a_fila':'pesaje_iniciar',{p_visita:u}));
+        else if(pn==='en_puerta')sbErr(await SB.rpc(prev.etapaActual==='enturnamiento'?'pesaje_llegada_fila':'pesaje_llegada',{p_visita:u,p_puerta:String(d.puertaAsignada||'1')}));
         else if(pn==='ingresado'){sbErr(await SB.rpc('pesaje_ingreso',{p_visita:u,p_puerta:String(d.puertaAsignada||'1')}));if(d.etapaActual==='alistamiento')sbErr(await SB.rpc('chequeador_confirmar_recibo',{p_visita:u}));await sbCargarNotif()}
-        else sbErr(await SB.rpc('pesaje_cancelar',{p_visita:u}));
+        else sbErr(await SB.rpc(prev.etapaActual==='enturnamiento'?'pesaje_cancelar_fila':'pesaje_cancelar',{p_visita:u}));
       }
       else if(d.etapaActual!==prev.etapaActual){
         if(d.etapaActual==='ingreso_puerta')sbErr(await SB.rpc('seguridad_dar_ingreso',{p_visita:u,p_puerta:String(d.etapas.ingreso_puerta.puerta||'1')}));
@@ -2042,7 +2042,9 @@ const CICLO=['ingreso_puerta','ingate','alistamiento','entrega_operador','outgat
 /* ---------- PESAJE (vehículos NO nacionalizados que se radican antes de pasar por puerta) ----------
    v.pesaje: 'pesando' (en báscula, bandera en Ingreso al sistema) -> 'en_puerta' (Registro avisó: Seguridad lo ve) -> 'ingresado' (Seguridad le dio ingreso).
    Mientras esté pesando o en puerta NO cuenta permanencia ni aforo ni se puede recibir en Alistamiento. */
-function pesPend(v){return v.pesaje==='pesando'||v.pesaje==='en_puerta'}
+function pesPend(v){return (v.pesaje==='pesando'||v.pesaje==='en_puerta')&&v.etapaActual==='ingate'}   // solo registros antiguos: ahora el pesaje vive dentro de la fila de Enturnamiento
+function pesEnFila(v){return v.pesaje==='pesando'&&v.etapaActual==='enturnamiento'}          // en báscula: ocupa su puesto en la fila pero NO se le llama
+function pesEnPuertaFila(v){return v.pesaje==='en_puerta'&&v.etapaActual==='enturnamiento'}   // ya llegó a puerta: sigue el llamado normal
 function pesStrip(v){return v.pesaje==='en_puerta'?'<span class="strip fuera" title="Llegó a puerta: Seguridad ya lo ve en su lista de ingreso">⚖ EN PUERTA · espera ingreso de Seguridad</span>':'<span class="strip early" title="Está en la báscula: aún no pasa por puerta. No cuenta permanencia ni aforo">⚖ PESANDO</span>'}
 function pesChip(v){return v.pesaje==='pesando'?'<span class="chip late">⚖ Pesando</span>':v.pesaje==='en_puerta'?'<span class="chip late">⚖ En puerta · espera Seguridad</span>':(v.pesaje==='ingresado'&&v.etapaActual==='ingate')?'<span class="chip ok">✔ Ingresó por puerta (pesaje)</span>':''}
 function pesCardHTML(v,lleno,ro,ptTxt){const asg=String(v.puertaAsignada||'1');
@@ -2322,13 +2324,14 @@ function rgAcciones(e,now){
   const st=v.etapaActual;if(!st)return '<p class="hint">La visita ya terminó: no hay acciones pendientes.</p>';
   const id=esc(v.id),a=[];
   if(st==='enturnamiento'){
-    if(llamPend.has(v.id))a.push(B('ghost','data-llamar="'+id+'"','↶ Deshacer llamado'));
+    if(pesEnFila(v)){a.push(B('primary','data-pesllega="'+id+'"','🚪 Llegó a puerta','Activa su llamado: se le llamará cuando le corresponda en la fila'));a.push(B('ghost','data-pescanc="'+id+'"','↩ Cancelar pesaje'))}
+    else if(llamPend.has(v.id))a.push(B('ghost','data-llamar="'+id+'"','↶ Deshacer llamado'));
     else if(esperaVentana(v))a.push(B('primary','data-habil="'+id+'"','⏳ Habilitar antes de tiempo','Su ventana abre a las '+hhmm(new Date(abreVentana(v)))));
     else if(llamadoActivo(v))a.push(B('ghost warnb','data-parar="'+id+'"','⏹ Detener llamado')+`<span class="llam" data-hasta="${esc(v.llamadoHasta)}" data-pre="📣 ">📣 ${mmss(new Date(v.llamadoHasta)-now)}</span>`);
     else{const z=zonaDePuerta(puertaActual(v));const af=aforoParaLlamar(z);
       a.push(af.lleno?B('primary','','🚫 Sin cupo para llamar',txtAforoLlamar(z,af),true):B('primary','data-llamar="'+id+'"',llamadoVencido(v)?'📣 Llamar de nuevo a puerta':'📣 Llamar a puerta','Seguridad podrá darle ingreso'))}
-    if(!esperaVentana(v))a.push(B('ghost','data-ingss="'+id+'"','Ingresar sin Seguridad'));
-    if(!v.demo&&notasDe(v.placa,v.dia).length)a.push(B('ghost','data-pesaje="'+id+'"','⚖ Pesaje','No nacionalizado: pasa a Ingreso al sistema con la bandera PESANDO, sin pasar por puerta'));
+    if(!esperaVentana(v)&&!pesEnFila(v))a.push(B('ghost','data-ingss="'+id+'"','Ingresar sin Seguridad'));
+    if(!v.demo&&!v.pesaje&&notasDe(v.placa,v.dia).length)a.push(B('ghost','data-pesaje="'+id+'"','⚖ Pesaje','No nacionalizado: sigue en la fila de Enturnamiento con el llamado desactivado hasta que llegue a puerta'));
     if(!v.demo)a.push(B('ghost danger','data-quitar="'+id+'"','Quitar de la lista'));
   }else if(st==='ingreso_puerta'){
     a.push(B('primary','data-ingsis="'+id+'"','▶ Dar ingreso al sistema'));a.push(B('ghost','data-rev="'+id+'"','↩ Reversar a Enturnamiento'));
@@ -3908,23 +3911,30 @@ async function darIngresoSistema(id){
    ⚖ Pesaje  -> pasa a Ingreso al sistema con la bandera PESANDO (sin permanencia ni aforo)
    🚪 Llegó a puerta -> Seguridad lo ve en su PWA y lo ingresa; el sistema confirma el ingreso (✔) y sigue el Recibo del chequeador -> Alistamiento */
 async function pesajeIniciar(id){
-  const v0=buscarVisita(id);if(!v0||v0.etapaActual!=='enturnamiento')return;const {id:_i,...v}=v0;
-  if(!await askConfirm(`⚖ Pesaje de ${v.placa}`,'El vehículo pasa a Ingreso al sistema con la bandera PESANDO. No cuenta permanencia ni aforo hasta que Seguridad le dé ingreso por puerta.','Pasar a pesaje'))return;
-  const now=new Date().toISOString();const et={...v.etapas};
-  et.enturnamiento={...et.enturnamiento,fin:now,usuarioFin:meId};
-  et.ingate={inicio:now,usuario:meId};
-  if(await safe(()=>guardarVisita(id,{...v,etapas:et,etapaActual:'ingate',pesaje:'pesando',pesajeInicio:now,llamadoHasta:undefined}),'No se pudo pasar a pesaje'))
-    {toast(v.placa+' quedó en Ingreso al sistema: PESANDO');if($('#dVisita')&&$('#dVisita').open)$('#dVisita').close()}
+  const v0=buscarVisita(id);if(!v0||v0.etapaActual!=='enturnamiento'||v0.pesaje)return;const {id:_i,...v}=v0;
+  if(!await askConfirm(`⚖ Pesaje de ${v.placa}`,'El vehículo sigue en la fila de Enturnamiento con su puesto, pero con el llamado desactivado. Cuando llegue a puerta se activa su llamado y se le llama cuando le corresponda.','Pasar a pesaje'))return;
+  const now=new Date().toISOString();
+  if(await safe(()=>guardarVisita(id,{...v,pesaje:'pesando',pesajeInicio:now,llamadoHasta:undefined}),'No se pudo pasar a pesaje'))
+    {toast(v.placa+' en pesaje: llamado desactivado hasta que llegue a puerta');if($('#dVisita')&&$('#dVisita').open)$('#dVisita').close()}
 }
 async function pesajeLlegada(id){
-  const v0=buscarVisita(id);if(!v0||v0.etapaActual!=='ingate'||v0.pesaje!=='pesando')return;const {id:_i,...v}=v0;
+  const v0=buscarVisita(id);if(!v0)return;
+  if(v0.etapaActual==='ingate'&&v0.pesaje==='pesando'){   // registros antiguos
+    const {id:_i,...v}=v0;const pta=String(rgPt[id]||puertaActual(v));
+    if(await safe(()=>guardarVisita(id,{...v,pesaje:'en_puerta',pesajeLlegada:new Date().toISOString(),puertaAsignada:pta}),'No se pudo registrar la llegada a puerta'))toast(v.placa+' en '+ptNom(pta)+': Seguridad ya lo ve');return}
+  if(!pesEnFila(v0))return;const {id:_i,...v}=v0;
   const pta=String(rgPt[id]||puertaActual(v));
-  if(!await askConfirm(`¿${v.placa} llegó a ${ptNom(pta)}?`,'Seguridad lo verá en su lista de Ingreso para darle ingreso. Hasta que Seguridad lo ingrese no cuenta permanencia ni aforo.','Llegó a puerta'))return;
+  if(!await askConfirm(`¿${v.placa} llegó a ${ptNom(pta)}?`,'Se activa su llamado: conserva su puesto en la fila y se le llamará cuando le corresponda.','Llegó a puerta'))return;
   if(await safe(()=>guardarVisita(id,{...v,pesaje:'en_puerta',pesajeLlegada:new Date().toISOString(),puertaAsignada:pta}),'No se pudo registrar la llegada a puerta'))
-    toast(v.placa+' en '+ptNom(pta)+': Seguridad ya lo ve');
+    toast(v.placa+' en '+ptNom(pta)+': su llamado quedó activo');
 }
 async function pesajeCancelar(id){
-  const v0=buscarVisita(id);if(!v0||v0.etapaActual!=='ingate'||!pesPend(v0))return;const {id:_i,...v}=v0;
+  const v0=buscarVisita(id);if(!v0)return;
+  if(pesEnFila(v0)){
+    if(!await askConfirm(`Cancelar el pesaje de ${v0.placa}`,'Se quita la marca de pesaje: el vehículo sigue en la fila de Enturnamiento con su llamado normal.','Cancelar pesaje'))return;
+    const {id:_i,...v}=v0;
+    if(await safe(()=>guardarVisita(id,{...v,pesaje:undefined,pesajeInicio:undefined,pesajeLlegada:undefined}),'No se pudo cancelar el pesaje'))toast(v0.placa+' sigue en Enturnamiento sin marca de pesaje');return}
+  if(v0.etapaActual!=='ingate'||!pesPend(v0))return;const {id:_i,...v}=v0;
   if(!await askConfirm(`Cancelar el pesaje de ${v.placa}`,'Vuelve a Enturnamiento como estaba antes de oprimir Pesaje.','Cancelar pesaje'))return;
   const et={...v.etapas};delete et.ingate;if(et.enturnamiento){et.enturnamiento={...et.enturnamiento};delete et.enturnamiento.fin;delete et.enturnamiento.usuarioFin}
   if(await safe(()=>guardarVisita(id,{...v,etapas:et,etapaActual:'enturnamiento',pesaje:undefined,pesajeInicio:undefined,pesajeLlegada:undefined}),'No se pudo cancelar el pesaje'))
@@ -4367,6 +4377,7 @@ const mmss=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return pad(Math.floor(s/6
 async function llamarAPuerta(id){
   if(llamPend.has(id)){cancelarPendiente(id);return}   // pulsar de nuevo durante la espera = deshacer
   const v0=buscarVisita(id);if(!v0||v0.etapaActual!=='enturnamiento')return;
+  if(pesEnFila(v0)){toast(v0.placa+' está en pesaje: se podrá llamar cuando llegue a puerta.',true);return}
   if(esperaVentana(v0)){toast('Aún no está en su ventana: habilítalo primero o espera a que abra.',true);return}
   {const z=zonaDePuerta(puertaActual(v0));const af=aforoParaLlamar(z);
    if(af.lleno){toast(txtAforoLlamar(z,af),true);return}}
