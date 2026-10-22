@@ -1090,6 +1090,149 @@ body.pwa .pwafull .pcard *{overflow-wrap:anywhere}
 .pwafull .psearch{padding:4px 10px 0}
 .pwafull .psearch input{padding:6px 12px}
 body.pwa .pwafull .phdr{padding-top:8px;padding-bottom:8px}
+
+/* =====================================================================
+   REFINAMIENTO VISUAL v2  (capa final: solo presentación, no toca la lógica)
+   Idea: consola de control portuaria. Encabezado azul marino con el logo
+   sobre su pastilla blanca, lienzo gris azulado para que los paneles
+   respiren, la placa amarilla como elemento protagonista y los colores
+   de alerta (amarillo / azul claro / rojo) intactos.
+   ===================================================================== */
+:root{
+  --bg:#EDF2F7;
+  --line:#D3DEEA;
+  --line-soft:#E4EBF3;
+  --top-bg:#0B2A4A;
+  --r-panel:12px;--r-ctl:8px;
+  --sh-1:0 1px 2px rgba(11,42,74,.06),0 6px 18px -8px rgba(11,42,74,.14);
+  --sh-pop:0 18px 48px -10px rgba(8,26,44,.38),0 2px 6px rgba(8,26,44,.12);
+  --ring:color-mix(in srgb,var(--blue) 28%,transparent);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --line:#24486E;--line-soft:#1A3A5C;--top-bg:#09192B;
+  --sh-1:0 1px 2px rgba(0,0,0,.35),0 6px 18px -8px rgba(0,0,0,.5);
+}}
+:root[data-theme="dark"]{
+  --line:#24486E;--line-soft:#1A3A5C;--top-bg:#09192B;
+  --sh-1:0 1px 2px rgba(0,0,0,.35),0 6px 18px -8px rgba(0,0,0,.5);
+}
+
+/* ---- base ---- */
+body{font-size:15.5px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+h2{font-size:1.6rem;letter-spacing:-.005em}
+h3{letter-spacing:.005em}
+*{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 45%,transparent) transparent}
+::selection{background:var(--cyan);color:#06243F}
+main{padding:22px 24px 48px}
+main.wide{padding:14px 16px 24px}
+
+/* ---- encabezado ---- */
+.top{background:var(--top-bg);border-bottom:3px solid var(--cyan)!important;padding:10px 22px;gap:10px 26px}
+.top .logo{box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.top .brand h1{color:#fff;font-size:1.35rem;letter-spacing:.01em}
+.top .brand small{color:#9CC4E8;font-size:.86rem}
+.top .brand .t{border-left:2px solid var(--cyan)}
+.top>nav{gap:2px}
+.top>nav button{color:#B8D2EA;font-weight:600;border-radius:8px 8px 0 0;padding:9px 16px;transition:background .15s,color .15s}
+.top>nav button:hover{background:rgba(255,255,255,.09);color:#fff}
+.top>nav button[aria-current="page"]{background:rgba(255,255,255,.13);color:#fff;box-shadow:inset 0 -3px 0 var(--cyan)}
+.top .who{color:#DCEBF8}
+.top .who .rol{background:rgba(255,255,255,.14);color:#fff;font-weight:600;padding:3px 12px}
+.top .who .link{color:#9FD8F5}
+.top .who .link:hover{color:#fff;text-decoration:underline}
+.top .nbtn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.26);color:#fff}
+.top .nbtn:hover{background:rgba(255,255,255,.18)}
+.top :focus-visible{outline-color:var(--cyan)}
+
+/* ---- pestañas secundarias: subrayado = página actual ---- */
+.subnav{gap:2px;padding-bottom:0;border-bottom:1px solid var(--line)}
+.subnav button{border-radius:8px 8px 0 0;padding:9px 18px;color:var(--muted);font-weight:600;transition:background .15s,color .15s}
+.subnav button:hover{background:color-mix(in srgb,var(--blue) 7%,transparent);color:var(--ink)}
+.subnav button[aria-current="page"]{background:none;color:var(--blue);box-shadow:inset 0 -3px 0 var(--blue)}
+.regtabs button{border-radius:var(--r-ctl);transition:background .15s,box-shadow .15s}
+
+/* ---- paneles ---- */
+.panel{border-radius:var(--r-panel);padding:18px;box-shadow:var(--sh-1)}
+.kpi{border-radius:10px;box-shadow:var(--sh-1);padding:11px 15px}
+.kpi b{font-variant-numeric:tabular-nums}
+.phead{margin-bottom:14px}
+.phead h2{margin:0}
+.phead .count{font-variant-numeric:tabular-nums}
+.stage{border-radius:var(--r-panel)}
+.stage.on{box-shadow:var(--sh-1)}
+.card{border-radius:9px}
+.card.mini{transition:box-shadow .15s,border-color .15s}
+.card.mini:hover{box-shadow:0 4px 14px -4px rgba(11,42,74,.28)}
+.empty{padding:34px 12px}
+
+/* ---- botones ---- */
+button{border-radius:var(--r-ctl);transition:background .15s,border-color .15s,color .15s,box-shadow .15s,transform .05s}
+.primary{box-shadow:0 1px 0 rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.14)}
+.primary:hover:not(:disabled){background:color-mix(in srgb,var(--blue) 88%,#000);box-shadow:0 3px 10px -2px color-mix(in srgb,var(--blue) 55%,transparent)}
+.primary:active:not(:disabled){transform:translateY(1px);box-shadow:none}
+.ghost:hover:not(:disabled){background:var(--blue-soft);border-color:var(--blue)}
+.ghost:active:not(:disabled){transform:translateY(1px)}
+.link:hover{text-decoration:underline}
+
+/* ---- campos ---- */
+input[type=text],input[type=password],input[type=search],input[type=number],input[type=date],input[type=time],select,textarea{
+  border-radius:var(--r-ctl);border-color:var(--line);padding:9px 11px;transition:border-color .15s,box-shadow .15s}
+input:hover:not(:disabled):not([type=checkbox]):not([type=radio]),select:hover:not(:disabled),textarea:hover:not(:disabled){border-color:color-mix(in srgb,var(--blue) 45%,var(--line))}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--ring)}
+label{font-weight:500}
+label.chk{font-weight:400}
+input[type=checkbox],input[type=radio]{accent-color:var(--blue)}
+
+/* ---- tablas ---- */
+th{padding:9px 8px;border-bottom:2px solid var(--line);background:color-mix(in srgb,var(--panel2) 70%,var(--panel))}
+td{padding:9px 8px;border-bottom:1px solid var(--line-soft)}
+td.hora{font-size:1.2rem}
+
+/* ---- chips de estado ---- */
+.chip{font-weight:600;font-size:.78rem;padding:2px 10px;letter-spacing:.01em}
+.chip.ok{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 30%,transparent)}
+.chip.late{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red) 30%,transparent)}
+.chip.in{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--blue) 30%,transparent)}
+.alertbadge{box-shadow:0 0 0 2px var(--panel)}
+
+/* ---- la placa: protagonista ---- */
+.plate{letter-spacing:.1em;border-radius:6px;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55),0 1px 0 rgba(0,0,0,.28),0 2px 5px -2px rgba(0,0,0,.3);
+  text-shadow:0 1px 0 rgba(255,255,255,.35)}
+.plate.big,.rg-h .plate,.dvhead .plate{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55),0 2px 0 rgba(0,0,0,.28),0 4px 10px -3px rgba(0,0,0,.35)}
+.card.mini .plate{box-shadow:none;text-shadow:none}
+body.fase .plate.blink-red{text-shadow:none}
+
+/* ---- ventanas ---- */
+dialog:not(.denter){border:0;border-top:4px solid var(--blue);border-radius:14px;padding:24px;box-shadow:var(--sh-pop)}
+dialog::backdrop{background:rgba(8,26,44,.58);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+dialog:not(.denter)[open]{animation:dlgIn .16s ease-out}
+@keyframes dlgIn{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+dialog h3{font-size:1.5rem;margin-bottom:14px}
+dialog.denter{border-radius:14px}
+fieldset{border-radius:var(--r-ctl);border-color:var(--line)}
+legend{font-weight:600}
+.acts{gap:10px;margin-top:10px}
+.acts button{padding:9px 18px}
+.acts .primary{font-weight:700}
+.dvsec{border-top-color:var(--line-soft)}
+
+/* ---- avisos ---- */
+#toast div{border-radius:10px;font-weight:500;box-shadow:0 10px 28px -6px rgba(8,26,44,.45);border-left:4px solid var(--cyan)}
+#toast div.e{border-left-color:#fff}
+.banner{border-bottom-color:color-mix(in srgb,var(--amber) 35%,var(--line))}
+.oppop,.etpop,.notifpop,#acList,#opAcList{border-radius:12px;box-shadow:var(--sh-pop)!important;border-color:var(--line)}
+
+/* ---- acceso ---- */
+.login .box{border-radius:16px;padding:32px 30px;border-top-width:6px}
+.login h1{font-size:1.9rem;letter-spacing:.005em}
+.login .primary{padding:12px;font-size:1.05rem;letter-spacing:.01em}
+
+/* ---- movimiento reducido ---- */
+@media (prefers-reduced-motion:reduce){
+  dialog:not(.denter)[open]{animation:none}
+  button,.card.mini,input,select,textarea{transition:none}
+}
 </style>
 </head>
 <body>
