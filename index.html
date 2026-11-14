@@ -698,6 +698,8 @@ dialog.dcheq{width:min(1180px,calc(100% - 24px))}
 .pgate button[data-gate="1"][aria-checked="true"]{background:#1565C0;color:#fff}.pgate button[data-gate="2"][aria-checked="true"]{background:#E65100;color:#fff}.pgate button[data-gate="3"][aria-checked="true"]{background:#6A1B9A;color:#fff}
 .pasg{font-size:.95rem!important;padding:3px 11px!important}
 .pced{font-size:.85rem;font-weight:700;color:var(--ink);letter-spacing:.02em}.pced.sin{color:var(--muted);font-weight:500}
+.pced .pcc{display:block}.pced .pnom{display:block;font-size:.92rem;font-weight:700;line-height:1.2;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);white-space:normal;overflow-wrap:anywhere;margin-top:1px}.pced .pnom:empty{display:none}.pced .pnom.sin{font-size:.74rem;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+.pcard.seg .pced .pnom{font-size:1.15rem;line-height:1.2;margin-top:2px}
 /* PWA del operador */
 .phdr.op{background:#5B3A8E}
 .phone .opfil{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 12px 0}.phone .opfil select{padding:9px 8px;border-radius:10px;font-size:.88rem}
@@ -1438,6 +1440,14 @@ const TURNOS_INICIALES={t1:{nombre:'TURNO 1',inicio:'06:00',fin:'14:00',activo:t
 const S={roles:{},usuarios:{},citas:{},visitas:{},config:{},notificaciones:{},novedades:{},funcionarios:{},turnos:{},programacion:{},mensajes:{}};
 const loaded={};let MSG_OK=false;   // en Supabase: true cuando existe la tabla mensajes_usuario
 let DB=null, MODE='cargando', meId=null, view='registro', regSub='enturnamiento', dayFilter='', q='', loginMsg='';
+/* SECTOR DE PUERTA: un solo rol Seguridad; en cada ingreso se elige con qué puerta se trabaja (obligatorio).
+   bse = Puerta BSE (puerta '1') · fisc = Puerta Fiscalización (Puerta 1 y Puerta 2 = puertas '2' y '3'). */
+const SECTORES={bse:{g:['1'],nom:'PUERTA BSE'},fisc:{g:['2','3'],nom:'PUERTA FISCALIZACIÓN (Puertas 1 y 2)'}};
+let sectorSel='';try{sectorSel=sessionStorage.getItem('perm_sector')||''}catch(e){}
+if(!SECTORES[sectorSel])sectorSel='';
+function setSector(s){sectorSel=SECTORES[s]?s:'';try{sectorSel?sessionStorage.setItem('perm_sector',sectorSel):sessionStorage.removeItem('perm_sector')}catch(e){}pwaVer=''}
+function sectorOpts(){return '<option value="">Selecciona la puerta…</option>'+Object.entries(SECTORES).map(([k,v])=>'<option value="'+k+'"'+(k===sectorSel?' selected':'')+'>'+v.nom+'</option>').join('')}
+function exigeSector(u){const r=u&&S.roles[u.rol];return !!(PWA_ROL&&r&&r.activo&&r.permisos&&r.permisos.seguridad&&!r.permisos.admin)}   // el administrador sigue eligiendo libremente
 let opDayFilter='', opQ='';
 const seenVisitas=new Set();
 
@@ -1806,7 +1816,7 @@ function accesoPwa(u){const r=rolOf(u);return !!r&&!(r.permisos&&r.permisos.pwa=
 function canEnter(u){const p=perms(u);if(!accesoPwa(u))return false;return !!(p.registro||p.admin||p.operadores||p.seguridad||p.chequeador||p.pwaoperador||p.pwaconductor||p.almacenista)}
 function soloMonitor(p){return !!(p&&p.almacenista&&!p.registro&&!p.admin)}
 function allowedViews(p){const v=[];if(p.registro)v.push('registro');if(soloMonitor(p))v.push('monitor');if(p.operadores||p.registro)v.push('operadores');if(p.seguridad||p.chequeador||p.pwaoperador||p.admin)v.push('pwaseg');if(p.pwaconductor||p.registro||p.admin)v.push('conductor');if(p.admin)v.push('estadisticas');if(p.admin)v.push('auditoria');if(p.usuarios&&!p.admin)v.push('usuarios');if(p.admin)v.push('admin');return v}
-function logout(msg){try{cerrarMensajes()}catch(e){}{for(const i of ['depBanner','audPauBanner']){const b=document.getElementById(i);if(b)b.remove()}}claveObligada=false;try{const d=$('#dPass');if(d&&d.open){d.dataset.forzado='';d.close()}}catch(e){}if(SB){try{SB.rpc('auditar_evento',{p_accion:'LOGOUT'}).then(()=>SB.auth.signOut(),()=>SB.auth.signOut())}catch(e){try{SB.auth.signOut()}catch(_){}}if(sbCanal){SB.removeChannel(sbCanal);sbCanal=null}COLS.forEach(c=>S[c]={})}meId=null;try{sessionStorage.removeItem('perm_me')}catch(e){}loginMsg=msg||'';$('#app').dataset.v='';render()}
+function logout(msg){try{cerrarMensajes()}catch(e){}{for(const i of ['depBanner','audPauBanner']){const b=document.getElementById(i);if(b)b.remove()}}claveObligada=false;setSector('');try{const d=$('#dPass');if(d&&d.open){d.dataset.forzado='';d.close()}}catch(e){}if(SB){try{SB.rpc('auditar_evento',{p_accion:'LOGOUT'}).then(()=>SB.auth.signOut(),()=>SB.auth.signOut())}catch(e){try{SB.auth.signOut()}catch(_){}}if(sbCanal){SB.removeChannel(sbCanal);sbCanal=null}COLS.forEach(c=>S[c]={})}meId=null;try{sessionStorage.removeItem('perm_me')}catch(e){}loginMsg=msg||'';$('#app').dataset.v='';render()}
 
 function render(){
   applyCfg();
@@ -1818,6 +1828,7 @@ function render(){
     showLogin();const d=$('#dPass');
     if(!(d.open&&d.dataset.forzado==='1')){toast('Por seguridad, cambia tu contraseña inicial antes de entrar.');abrirCambioClave(true)}
     return}
+  if(exigeSector(u)&&!SECTORES[sectorSel]){showSector(u);return}   // sesión recuperada sin sector: se pide antes de entrar
   showApp(u);
 }
 let claveObligada=false;
@@ -1836,22 +1847,25 @@ function showLogin(){
     ${trackHTML(0)}
     <label>Usuario<input type="text" name="u" required autocomplete="username" autocapitalize="characters"></label>
     <label>Contraseña<input type="password" name="p" required autocomplete="current-password"></label>
+    <label>Puerta / sector<select name="sector" required>${sectorOpts()}</select></label>
     <p class="err" id="loginErr">${esc(loginMsg)}</p>
     <button class="primary">Entrar</button>
     <p class="mode">${MODE==='supabase'?'Conectado a la base de datos SPB.':MODE==='local'?'Sin conexión a la base de datos: modo local, los datos se guardan solo en este navegador.':'Datos compartidos en tiempo real con todo el equipo.'}</p>
   </form></div>`;
   $('#fLogin').addEventListener('submit',async e=>{
-    e.preventDefault();const f=e.target;const id=f.u.value.trim().toLowerCase();
+    e.preventDefault();const f=e.target;const id=f.u.value.trim().toLowerCase();const sec=f.sector.value;
+    if(!SECTORES[sec]){loginMsg='Selecciona la puerta con la que vas a trabajar.';$('#loginErr').textContent=loginMsg;f.sector.focus();return}
     if(SB){
       const btn=f.querySelector('button.primary');btn.disabled=true;btn.textContent='Entrando…';
       const fin=m=>{loginMsg=m;$('#loginErr').textContent=m;btn.disabled=false;btn.textContent='Entrar'};
       const r=await SB.auth.signInWithPassword({email:id+SB_DOMINIO,password:f.p.value.toUpperCase()});
       if(r.error){if(/invalid/i.test(r.error.message)){try{SB.rpc('auditar_login_fallido',{p_usuario:id}).then(()=>{},()=>{})}catch(_){}}fin(/invalid/i.test(r.error.message)?'Usuario o contraseña incorrectos.':/banned/i.test(r.error.message)?'Este usuario está desactivado. Pide ayuda al administrador.':'No se pudo entrar: '+r.error.message);return}
-      try{await sbEntrar()}catch(err){fin(err.message);return}
+      setSector(sec);
+      try{await sbEntrar()}catch(err){setSector('');fin(err.message);return}
       const u=S.usuarios[meId];const ro=rolOf(u);
-      if(!u||!u.activo){await SB.auth.signOut();meId=null;fin('Este usuario está desactivado. Pide ayuda al administrador.');return}
-      if(!ro||!ro.activo){await SB.auth.signOut();meId=null;fin('El rol de este usuario está desactivado.');return}
-      if(!canEnter(u)){await SB.auth.signOut();meId=null;fin(!accesoPwa(u)?'El rol '+ro.nombre+' no tiene acceso al PWA. Ingresa desde el HTML.':'El rol '+ro.nombre+' todavía no tiene pantallas asignadas.');return}
+      if(!u||!u.activo){await SB.auth.signOut();meId=null;setSector('');fin('Este usuario está desactivado. Pide ayuda al administrador.');return}
+      if(!ro||!ro.activo){await SB.auth.signOut();meId=null;setSector('');fin('El rol de este usuario está desactivado.');return}
+      if(!canEnter(u)){await SB.auth.signOut();meId=null;setSector('');fin(!accesoPwa(u)?'El rol '+ro.nombre+' no tiene acceso al PWA. Ingresa desde el HTML.':'El rol '+ro.nombre+' todavía no tiene pantallas asignadas.');return}
       loginMsg='';claveObligada=(f.p.value.toUpperCase()===DEFAULT_PASS);view=allowedViews(perms(u))[0]||'registro';render();
       return;
     }
@@ -1864,9 +1878,30 @@ function showLogin(){
     const r=rolOf(u);
     if(!r||!r.activo){loginMsg='El rol de este usuario está desactivado.';$('#loginErr').textContent=loginMsg;return}
     if(!canEnter(u)){loginMsg=!accesoPwa(u)?'El rol '+r.nombre+' no tiene acceso al PWA. Ingresa desde el HTML.':'El rol '+r.nombre+' todavía no tiene pantallas asignadas.';$('#loginErr').textContent=loginMsg;return}
-    meId=id;loginMsg='';try{sessionStorage.setItem('perm_me',id)}catch(e){}
+    setSector(sec);meId=id;loginMsg='';try{sessionStorage.setItem('perm_me',id)}catch(e){}
     claveObligada=(pv===DEFAULT_PASS);view=allowedViews(perms(u))[0]||'registro';render();
   });
+}
+
+function showSector(u){
+  const app=$('#app');
+  if(app.dataset.v==='sector')return;
+  app.dataset.v='sector';
+  app.innerHTML=`<div class="login"><form class="box" id="fSector">
+    <div class="brand" style="margin-bottom:18px">
+      <span class="logo"><img src="${LOGO}" alt="Sociedad Portuaria Buenaventura"></span>
+      <div class="t"><h1>SEGURIDAD</h1><p class="sub" style="margin:2px 0 0">${esc(u.nombre||meId||'')} · ¿En qué puerta vas a trabajar?</p></div>
+    </div>
+    ${trackHTML(0)}
+    <label>Puerta / sector<select name="sector" required>${sectorOpts()}</select></label>
+    <p class="err" id="sectorErr"></p>
+    <button class="primary">Continuar</button>
+    <button type="button" class="ghost" id="sectorOut" style="width:100%;margin-top:8px">Salir</button>
+  </form></div>`;
+  $('#sectorOut').onclick=()=>logout('');
+  $('#fSector').addEventListener('submit',e=>{e.preventDefault();const v=e.target.sector.value;
+    if(!SECTORES[v]){$('#sectorErr').textContent='Selecciona la puerta con la que vas a trabajar.';return}
+    setSector(v);$('#app').dataset.v='';render()})
 }
 
 function showApp(u){
@@ -2982,11 +3017,7 @@ function renderPwaSeg(){
 }
 /* los contadores de las pestañas de las PWA se encienden y apagan cuando hay placas pendientes */
 function marcarContadores(){document.querySelectorAll('.ptabs b').forEach(b=>b.classList.toggle('hay',(+b.textContent||0)>0))}
-const GATE_ROLES={'seguridad-bse':['1'],'seguridad-12':['2','3'],'seguridad-p1':['2','3'],'seguridad-p2':['2','3']};   // rol -> puertas (1=BSE, 2=Puerta 1, 3=Puerta 2)
-function puertaFija(){const u=S.usuarios[meId];if(!u)return null;if(GATE_ROLES[u.rol])return GATE_ROLES[u.rol];
-  const r=S.roles[u.rol];if(!r||!r.permisos||!r.permisos.seguridad||r.permisos.admin)return null;
-  const t=(u.rol+' '+(r.nombre||'')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');   // por si el rol se creó a mano desde la app
-  if(/\bbse\b/.test(t))return ['1'];if(/\b12\b|1[ _-]*y[ _-]*2|1[ _-]*-[ _-]*2/.test(t))return ['2','3'];return null}
+function puertaFija(){const u=S.usuarios[meId];if(!u||!exigeSector(u))return null;const x=SECTORES[sectorSel];return x?x.g:null}   // la puerta la define el sector elegido al ingresar (mismo rol para BSE y Fiscalización)
 function pwaGrupo(){const f=PWA_ROL&&puertaFija();return f||[String(pwaPuerta)]}
 function enGrupo(p){return pwaGrupo().includes(String(p))}
 let pwaVer='';   // '' = mi zona; '1' o '12' = zona que estoy mirando (la otra zona es solo consulta)
@@ -4125,7 +4156,31 @@ function movimientosPatio(z){
 }
 
 function fmtCed(c){c=String(c||'').replace(/\D/g,'');return c?c.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):''}
-function cedHTML(v){const c=fmtCed(v.cedula);return `<div class="pced${c?'':' sin'}">🪪 ${c?'CC '+c:'Cédula sin dato'}</div>`}
+/* ---- NOMBRE DEL CONDUCTOR: se busca por cédula en la base de conductores (proyecto aparte, solo lectura) ---- */
+const CDN_URL='https://qqxaxvanztdexggydkcg.supabase.co',CDN_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeGF4dmFuenRkZXhnZ3lka2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NzQ3MjYsImV4cCI6MjExMDE1MDcyNn0.1LoWi2oeuQd736H9Iz-_ylSAcAHSmFCZ34ULEhsvxFc';
+const CDN={mapa:new Map(),cola:new Set(),cli:null,t:null,vuelo:false,falloHasta:0};   // mapa: cédula (solo dígitos) -> {n:nombre ('' si no está registrada), t:cuándo se leyó}
+const cdnDig=c=>String(c??'').replace(/\D/g,'');
+const cdnMay=s=>String(s??'').replace(/^[\.\s]+/,'').replace(/\s+/g,' ').trim().toLocaleUpperCase('es-CO');
+function cdnCli(){if(CDN.cli)return CDN.cli;if(!(window.supabase&&window.supabase.createClient))return null;
+  CDN.cli=window.supabase.createClient(CDN_URL,CDN_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'sb-cdn-conductores'}});return CDN.cli}
+function cdnSpan(d){const e=CDN.mapa.get(d);
+  if(!e||Date.now()-e.t>(e.n?600000:120000)){CDN.cola.add(d);clearTimeout(CDN.t);CDN.t=setTimeout(cdnCargar,80)}   // sin dato o vencido: se pide (la tarjeta se pinta con lo que haya)
+  return e?(e.n?`<span class="pnom" data-c="${d}">${esc(e.n)}</span>`:`<span class="pnom sin" data-c="${d}">Nombre sin registrar</span>`):`<span class="pnom" data-c="${d}"></span>`}
+function cdnPinta(d){const e=CDN.mapa.get(d);if(!e)return;
+  document.querySelectorAll('.pnom[data-c="'+d+'"]').forEach(el=>{if(e.n){el.textContent=e.n;el.classList.remove('sin')}else{el.textContent='Nombre sin registrar';el.classList.add('sin')}})}
+async function cdnCargar(){
+  if(CDN.vuelo||!CDN.cola.size)return;if(Date.now()<CDN.falloHasta){CDN.t=setTimeout(cdnCargar,CDN.falloHasta-Date.now()+50);return}
+  const cli=cdnCli();if(!cli)return;
+  const lote=[...CDN.cola].slice(0,100);lote.forEach(d=>CDN.cola.delete(d));CDN.vuelo=true;
+  try{
+    const vars=[];lote.forEach(d=>{vars.push(d);const p=d.replace(/\B(?=(\d{3})+(?!\d))/g,'.');if(p!==d)vars.push(p,p.replace(/\./g,','),p.replace(/\./g,' '))});   // 94441657 = 94.441.657: se busca sin separador y con punto, coma o espacio, y se compara solo por dígitos
+    const r=await cli.from('conductores').select('cedula,nombre').in('cedula',vars);if(r.error)throw r.error;
+    const hallados=new Map();(r.data||[]).forEach(x=>{const d=cdnDig(x.cedula);if(d&&x.nombre&&!hallados.has(d))hallados.set(d,cdnMay(x.nombre))});
+    const t=Date.now();lote.forEach(d=>{CDN.mapa.set(d,{n:hallados.get(d)||'',t});cdnPinta(d)});
+  }catch(e){CDN.falloHasta=Date.now()+30000;lote.forEach(d=>CDN.cola.add(d))}   // sin conexión con esa base: reintenta en 30 s, la tarjeta sigue mostrando la cédula
+  CDN.vuelo=false;if(CDN.cola.size){clearTimeout(CDN.t);CDN.t=setTimeout(cdnCargar,80)}
+}
+function cedHTML(v){const c=fmtCed(v.cedula),d=cdnDig(v.cedula);return `<div class="pced${c?'':' sin'}"><span class="pcc">🪪 ${c?'CC '+c:'Cédula sin dato'}</span>${d?cdnSpan(d):''}</div>`}
 
 /* =================== PWA DEL OPERADOR ===================
    Consulta de citas del día SIN TIEMPOS: operador, hora de la cita, cantidad y etapa del vehículo.
