@@ -1894,14 +1894,24 @@ function showSector(u){
     </div>
     ${trackHTML(0)}
     <label>Puerta / sector<select name="sector" required>${sectorOpts()}</select></label>
+    <label>Contraseña<input type="password" name="p" required autocomplete="current-password" style="text-transform:uppercase"></label>
     <p class="err" id="sectorErr"></p>
     <button class="primary">Continuar</button>
     <button type="button" class="ghost" id="sectorOut" style="width:100%;margin-top:8px">Salir</button>
   </form></div>`;
   $('#sectorOut').onclick=()=>logout('');
-  $('#fSector').addEventListener('submit',e=>{e.preventDefault();const v=e.target.sector.value;
-    if(!SECTORES[v]){$('#sectorErr').textContent='Selecciona la puerta con la que vas a trabajar.';return}
-    setSector(v);$('#app').dataset.v='';render()})
+  $('#fSector').addEventListener('submit',async e=>{e.preventDefault();const f=e.target,v=f.sector.value,err=$('#sectorErr'),btn=f.querySelector('.primary');
+    if(!SECTORES[v]){err.textContent='Selecciona la puerta con la que vas a trabajar.';return}
+    const pass=f.p.value.toUpperCase();if(!pass){err.textContent='Ingresa tu contraseña para elegir la puerta.';f.p.focus();return}   // elegir o cambiar de puerta SIEMPRE exige la contraseña
+    btn.disabled=true;err.textContent='';
+    try{
+      let ok=false;
+      if(SB){const r=await SB.auth.signInWithPassword({email:meId+SB_DOMINIO,password:pass});ok=!r.error}
+      else{ok=!!u&&await hash(pass)===u.pass}
+      if(!ok){err.textContent='Contraseña incorrecta.';f.p.value='';f.p.focus();return}
+      setSector(v);$('#app').dataset.v='';render()
+    }catch(ex){err.textContent='No se pudo verificar la contraseña. Revisa la conexión.'}
+    finally{btn.disabled=false}})
 }
 
 function showApp(u){
@@ -3029,7 +3039,7 @@ function enVer(p){return grupoVer().includes(String(p))}
 const PRO='<div class="pro">👁 Solo consulta: esta cita se ejecuta desde su propia puerta</div>';
 function pwaTitulo(){const g=pwaGrupo();return g.length>1?'Puertas 1 y 2':ptNom(g[0])}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('#pZona [data-z]');if(!b)return;
-  if(PWA_ROL&&puertaFija()){pwaVer=(b.dataset.z===zonaPropia())?'':b.dataset.z}   // usuario de zona fija: puede MIRAR la otra zona (solo consulta)
+  if(PWA_ROL&&puertaFija()){pwaVer=(b.dataset.z===zonaPropia())?'':b.dataset.z}   // usuario de zona fija: puede MIRAR la otra zona (solo consulta); ejecutar solo en la puerta con la que inició sesión
   else{pwaPuerta=b.dataset.z==='1'?'1':'2';try{localStorage.setItem('perm_pwa_puerta',pwaPuerta)}catch(_){}}
   renderPwaList()});
 function pendZona(){   // citas activas por zona: llamadas vigentes por ingresar + vehículos en puerta de salida
