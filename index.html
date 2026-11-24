@@ -697,6 +697,7 @@ dialog.dcheq{width:min(1180px,calc(100% - 24px))}
 .pgate button[data-gate="1"]{border-color:#1565C0;color:#1565C0}.pgate button[data-gate="2"]{border-color:#E65100;color:#E65100}.pgate button[data-gate="3"]{border-color:#6A1B9A;color:#6A1B9A}
 .pgate button[data-gate="1"][aria-checked="true"]{background:#1565C0;color:#fff}.pgate button[data-gate="2"][aria-checked="true"]{background:#E65100;color:#fff}.pgate button[data-gate="3"][aria-checked="true"]{background:#6A1B9A;color:#fff}
 .pasg{font-size:.95rem!important;padding:3px 11px!important}
+.pced .pcedbtn{display:inline-block;margin:4px 0 2px;padding:6px 12px;border:1px solid #1565C0;border-radius:8px;background:#E3F2FD;color:#0D47A1;font:inherit;font-size:.9rem;font-weight:700;cursor:pointer}.pced .pcedbtn:disabled{opacity:.5}
 .pced{font-size:.85rem;font-weight:700;color:var(--ink);letter-spacing:.02em}.pced.sin{color:var(--muted);font-weight:500}
 .pced .pcc{display:block}.pced .pnom{display:block;font-size:.92rem;font-weight:700;line-height:1.2;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);white-space:normal;overflow-wrap:anywhere;margin-top:1px}.pced .pnom:empty{display:none}.pced .pnom.sin{font-size:.74rem;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
 .pcard.seg .pced .pnom{font-size:1.15rem;line-height:1.2;margin-top:2px}
@@ -4171,8 +4172,8 @@ const CDN_URL='https://qqxaxvanztdexggydkcg.supabase.co',CDN_KEY='eyJhbGciOiJIUz
 const CDN={mapa:new Map(),cola:new Set(),cli:null,t:null,vuelo:false,falloHasta:0};   // mapa: cédula (solo dígitos) -> {n:nombre ('' si no está registrada), t:cuándo se leyó}
 const cdnDig=c=>String(c??'').replace(/\D/g,'');
 const cdnMay=s=>String(s??'').replace(/^[\.\s]+/,'').replace(/\s+/g,' ').trim().toLocaleUpperCase('es-CO');
-function cdnCli(){if(CDN.cli)return CDN.cli;if(!(window.supabase&&window.supabase.createClient))return null;
-  CDN.cli=window.supabase.createClient(CDN_URL,CDN_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'sb-cdn-conductores'}});return CDN.cli}
+/* La tabla conductores ahora vive en la base PRINCIPAL: se usa la misma sesión (SB) */
+function cdnCli(){return SB||null}
 function cdnSpan(d){const e=CDN.mapa.get(d);
   if(!e||Date.now()-e.t>(e.n?600000:120000)){CDN.cola.add(d);clearTimeout(CDN.t);CDN.t=setTimeout(cdnCargar,80)}   // sin dato o vencido: se pide (la tarjeta se pinta con lo que haya)
   return e?(e.n?`<span class="pnom" data-c="${d}">${esc(e.n)}</span>`:`<span class="pnom sin" data-c="${d}">Nombre sin registrar</span>`):`<span class="pnom" data-c="${d}"></span>`}
@@ -4190,7 +4191,23 @@ async function cdnCargar(){
   }catch(e){CDN.falloHasta=Date.now()+30000;lote.forEach(d=>CDN.cola.add(d))}   // sin conexión con esa base: reintenta en 30 s, la tarjeta sigue mostrando la cédula
   CDN.vuelo=false;if(CDN.cola.size){clearTimeout(CDN.t);CDN.t=setTimeout(cdnCargar,80)}
 }
-function cedHTML(v){const c=fmtCed(v.cedula),d=cdnDig(v.cedula);return `<div class="pced${c?'':' sin'}"><span class="pcc">🪪 ${c?'CC '+c:'Cédula sin dato'}</span>${d?cdnSpan(d):''}</div>`}
+/* Cédula de la visita; si la visita quedó sin cédula (la cita no la tenía al enturnar o se cargó después), se toma de la cita de esa placa ese día */
+/* Columna de la cédula del conductor en el Excel de N4: nombres conocidos y, si no, cualquier título parecido */
+function colCedula(h){const n=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(),H=h.map(n);
+  for(const k of ['truck visit driver license','truck visit driver card','truck visit driver id','driver license','driver license nbr','driver card','driver card id','driver id','cedula conductor','cedula del conductor','cedula','documento conductor','documento','cc conductor','cc']){const i=H.indexOf(k);if(i>=0)return i}
+  return H.findIndex(t=>/driver.*(license|licence|card|id|doc)|cedula|documento/.test(t)&&!/name|nombre/.test(t))}
+function cedVisita(v){if(!v)return '';if(String(v.cedula||'').replace(/\D/g,''))return v.cedula;
+  const n=x=>String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,''),p=n(v.placa),dia=String(v.dia||'').slice(0,10);if(!p)return '';
+  const cs=Object.values(S.citas||{}).filter(c=>c&&n(c.placa)===p&&String(c.cedula||'').replace(/\D/g,'')&&(!dia||String(c.cita||'').slice(0,10)===dia));
+  const m=cs.find(c=>c.cita===v.cita)||cs[0];return m?m.cedula:''}
+function cedHTML(v){const ced=cedVisita(v),c=fmtCed(ced),d=cdnDig(ced);return `<div class="pced${c?'':' sin'}"><span class="pcc">🪪 ${c?'CC '+c:'Cédula sin dato'}</span>${!c&&v&&v.uuid&&SB&&false?`<button type="button" class="pcedbtn" data-cedvis="${esc(v.uuid)}" data-cedpl="${esc(v.placa||'')}">✏️ Registrar cédula</button>`:''}${d?cdnSpan(d):''}</div>`}
+/* Registrar la cédula a mano cuando el Excel de N4 no la trae: queda en la visita y en la cita (registrar_cedula_visita.sql) */
+document.addEventListener('click',async e=>{const b=e.target.closest&&e.target.closest('.pcedbtn');if(!b)return;e.preventDefault();e.stopPropagation();
+  const uid=b.dataset.cedvis,pl=b.dataset.cedpl||'';const t=prompt('Cédula del conductor de '+pl+' (solo números):');if(t==null)return;
+  const ced=String(t).replace(/\D/g,'');if(ced.length<5||ced.length>12){toast('Cédula no válida: escribe solo los números (entre 5 y 12 dígitos).',true);return}
+  b.disabled=true;try{const r=await SB.rpc('registrar_cedula_visita',{p_visita:uid,p_cedula:ced});if(r.error)throw r.error;
+    Object.values(S.visitas||{}).forEach(v=>{if(v&&v.uuid===uid)v.cedula=ced});toast('Cédula '+fmtCed(ced)+' registrada para '+pl);render()}
+  catch(err){b.disabled=false;const m=(err&&err.message)||String(err);toast(/registrar_cedula_visita|function|schema cache/i.test(m)?'Falta ejecutar registrar_cedula_visita.sql en Supabase.':'No se pudo registrar la cédula: '+m,true)}},true);
 
 /* =================== PWA DEL OPERADOR ===================
    Consulta de citas del día SIN TIEMPOS: operador, hora de la cita, cantidad y etapa del vehículo.
@@ -5203,7 +5220,7 @@ $('#fileXl').addEventListener('change',async e=>{
     const hi=rows.findIndex(r=>r.map(x=>String(x).trim()).includes('Truck Visit Truck License'));
     if(hi<0){toast('El archivo no tiene la columna Truck Visit Truck License. Usa el export TruckTransaction de N4.',true);return}
     const h=rows[hi].map(x=>String(x).trim());const c=n=>h.indexOf(n);
-    const iF=c('Truck Visit Fecha Cita'),iP=c('Truck Visit Truck License'),iB=c('BL'),iT=c('Ticket Position'),iQ=c('Cargo Item Qty'),iO=c('Cargo DO Item Qty Ordered'),iN=c('Notes'),iOp=c('Operador Camion'),iD=c('Delivery Order Nbr'),iCc=c('Truck Visit Driver License')>=0?c('Truck Visit Driver License'):c('Truck Visit Driver Card'),iS=c('Truck Visit Truck Visit Status');
+    const iF=c('Truck Visit Fecha Cita'),iP=c('Truck Visit Truck License'),iB=c('BL'),iT=c('Ticket Position'),iQ=c('Cargo Item Qty'),iO=c('Cargo DO Item Qty Ordered'),iN=c('Notes'),iOp=c('Operador Camion'),iD=c('Delivery Order Nbr'),iCc=colCedula(h),iS=c('Truck Visit Truck Visit Status');
     const docs=[];let skip=0,skipAnt=0;
     for(const r of rows.slice(hi+1)){
       const placa=String(r[iP]||'').trim().toUpperCase();const cita=parseCita(r[iF]);
@@ -5226,7 +5243,7 @@ $('#fileXl').addEventListener('change',async e=>{
       }
       if(!errCarga&&cargadas>0)xlMarcarCarga();
       await sbCargarCitas();render();
-      toast(cargadas+' citas cargadas en la base de datos'+(skip?', '+skip+' filas omitidas':'')+(skipAnt?', '+skipAnt+' de días anteriores descartadas':''));dayFilter='';renderCitas();return;
+      toast(cargadas+' citas cargadas en la base de datos'+(skip?', '+skip+' filas omitidas':'')+(skipAnt?', '+skipAnt+' de días anteriores descartadas':'')+(iCc<0?'. ⚠ El Excel NO trae la columna de cédula del conductor (Truck Visit Driver License): las citas quedan sin cédula':(docs.some(([,d])=>d.cedula)?'':'. ⚠ La columna de cédula del Excel viene vacía')),iCc<0);dayFilter='';renderCitas();return;
     }
     let ok=0,fail=0,i=0;
     async function worker(){while(i<docs.length){const [id,d]=docs[i++];try{if(DB)await DB.collection('citas').doc(id).set(d);else S.citas[id]=d;ok++}catch(err){fail++}}}
